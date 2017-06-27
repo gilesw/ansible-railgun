@@ -7,5 +7,6 @@
     railgun_log_level: 5
     railgun_service_state: stopped
     railgun_service_enabled: no
+    railgun_template_notify: "{{ omit }}"
   roles:
     - ansible-railgun
