@@ -19,6 +19,7 @@ script:
 
   - ansible-playbook -i inventory tests/playbook.yml --connection=local --sudo
 
-  - sudo tests/check_ports.sh
+  #- sudo tests/check_ports.sh
+  - sudo tests/check_startup.sh
   - sudo tests/check_logs.sh
 
