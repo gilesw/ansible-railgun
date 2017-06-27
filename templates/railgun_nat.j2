@@ -1,0 +1,12 @@
+# This is a comment. It starts with #
+
+#example.com=127.0.0.2
+#www.example.com = 127.0.0.1
+
+#default=127.0.0.1
+
+{% if railgun_nat_lines %}
+{% for railgun_nat_line in railgun_nat_lines %}
+{{ railgun_nat_line }}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,8 @@
+---
+
+- name: restart railgun
+  service:
+    name: railgun
+    state: restarted
+
+

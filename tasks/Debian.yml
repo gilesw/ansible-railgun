@@ -1,0 +1,27 @@
+---
+- name: setup 3rdparty apt key
+  apt_key:
+    data: "{{ item.value.data | default(omit) }}"
+    id: "{{ item.value.id | default(omit) }}"
+    url: "{{ item.value.url | default(omit) }}"
+    keyserver: "{{ item.value.keyserver | default(railgun_apt_repository_key_keyserver) }}"
+  with_dict: "{{ railgun_apt_repository_key }}"
+  when: ansible_os_family == 'Debian' and railgun_apt_repository_key is defined
+
+- name: setup 3rdparty apt repository if required
+  apt_repository:
+    repo: "{{ item.value.repo }}"
+  with_dict: "{{ railgun_apt_repository }}"
+  when: ansible_os_family == 'Debian' and railgun_apt_repository is defined
+
+- name: template files Debian only
+  template:
+    src: "{{ item.value.src }}"
+    dest: "{{ item.value.dest | default(railgun_template_dest) }}"
+    directory_mode: "{{ item.value.directory_mode | default(railgun_template_directory_mode) }}"
+    owner: "{{ item.value.owner | default(railgun_template_owner)}}"
+    group: "{{ item.value.group | default(railgun_template_group) }}"
+    mode: "{{ item.value.mode | default(railgun_template_mode)}}"
+  notify: "{{ item.value.notify | default(railgun_template_notify) }}"
+  with_dict: "{{ railgun_template_Debian }}"
+

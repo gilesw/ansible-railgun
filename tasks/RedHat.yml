@@ -1,0 +1,24 @@
+---
+- name: setup 3rdparty yum repository
+  yum_repository:
+    name: "{{ item.value.key }}"
+    baseurl: "{{ item.value.baseurl}}"
+    gpgkey: "{{ item.value.gpgkey | default(railgun_yum_repository) }}"
+  with_dict: "{{ railgun_yum_repository }}"
+  when: railgun_yum_repository is defined
+
+- name: setup 3rdparty yum repository key
+  rpm_key:
+    key: "{{ item.value.key }}"
+  with_dict: "{{ railgun_yum_repository_key }}"
+  when: railgun_yum_repository_key is defined
+
+- name: set ulimit
+  pam_limits:
+    domain: "{{{ item.value.domain | default(railgun_limits_domain) }}"
+    limit_type: "{{{ item.value.limit_type | default(railgun_limits_limit_type) }}"
+    limit_item: "{{{ item.value.limit_item | default(railgun_limits_limit_item) }}"
+    value: "{{ item.value.value | default(railgun_limits_limit_value) }}"
+  with_dict: "{{ railgun_limits }}"
+  when: railgun_limits is defined
+

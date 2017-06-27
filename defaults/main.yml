@@ -1,0 +1,119 @@
+#
+# Config
+#
+
+railgun_ulimit: 16384 # a large railgun instance can leave many persistant connections open
+
+railgun_activation_railgun_host: "{{ ipify_public_ip }}"
+railgun_activation_token: unset
+railgun_wan_port: 2408
+
+# set this to force ipv4
+# railgun_wan_ip: "{{ ansible_default_ipv4.address }}"
+railgun_wan_ip: false
+
+# Static map of IPs for use in NAT environments
+map_file: /etc/railgun/railgun-nat.conf
+stderr_file: /var/log/railgun/panic.log
+pid_file: /var/run/railgun/railgun.pid
+
+# 0 - log only errors
+# 5 - full debug logging (not for production use)
+log_level: 0
+validate_cert: 0 # Disable origin server SSL certificate validation by default
+ca_bundle: /etc/ssl/railgun-ca-certs.crt
+
+memcached_servers: 127.0.0.1:11211 # space separated list of memcached servers
+memcached_timeout: 100
+memcached_limit: 1000000
+memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the expiration time is infinite.
+# If the HTTP response body is greater than this number of bytes it will not be
+# delta compressed and the body will be streamed across the WAN as it is read
+# from the HTTP server. Defaults to 250000 bytes.
+#
+# Note that increasing this beyond 250KB will allow Railgun to consume more CPU
+# resources per request. Text (HTML, CSS, JavaScript, JSON) files over 250KB
+# should be rare, and if there is a need to increase stream.size substantially,
+# you should be aware of the diminishing returns.
+stream_size: 250000
+
+stats_enabled: 0
+stats_log: 0
+stats_interval: 1
+stats_listen: false # e.g. 127.0.0.1:24088
+# Sets the URL (e.g. http://stats.example.com:9090/) to POST to.
+# Defaults to nothing indicating that stats will not be POSTed anywhere
+stats_url: false
+
+
+railgun_nat_lines: false
+# railgun_nat_lines:
+#   - www.example.com = 127.0.0.1
+
+#
+# Actions
+#
+
+railgun_packages:
+  railgun-stable:
+
+railgun_yum_repository_key:
+  cloudflare:
+    key: https://pkg.cloudflare.com/pubkey.gpg
+
+railgun_apt_repository:
+  cloudflare:
+    repo: "deb http://pkg.cloudflare.com/ {{ ansible_distribution_release }} main"
+
+railgun_apt_repository_key_keyserver: "{{ omit }}"
+railgun_apt_repository_key:
+  cloudflare:
+    url: https://pkg.cloudflare.com/pubkey.gpg
+
+railgun_file_dest: /etc/railgun
+railgun_file_owner: root
+railgun_file_mode: '0644'
+railgun_file_notify: restart railgun
+
+railgun_copy_dest: "{{ railgun_file_dest }}"
+railgun_copy_directory_mode: "{{ omit }}"
+railgun_copy_owner:  "{{ railgun_file_owner }}"
+railgun_copy_group:  "{{ ansible_user_gid }}"
+railgun_copy_mode:   "{{ railgun_file_mode }}"
+railgun_copy_notify: "{{ railgun_file_notify }}"
+
+railgun_template_dest: "{{ omit }}"
+railgun_template_directory_mode: "{{ omit }}"
+railgun_template_owner:  "{{ railgun_file_owner }}"
+railgun_template_group:  "{{ ansible_user_gid }}"
+railgun_template_mode:   "{{ railgun_file_mode }}"
+railgun_template_notify: "{{ railgun_file_notify }}"
+
+railgun_template:
+  railgun_conf:
+    src: railgun_conf.j2
+    dest: /etc/railgun/railgun.conf
+  railgun_nat_conf:
+    src: railgun_nat.j2
+    dest: /etc/railgun/railgun-nat.conf
+
+railgun_template_Debian:
+  railgun_default:
+    src: railgun_default.j2
+    dest: /etc/default/railgun
+
+railgun_service_state: started
+railgun_service_enabled: yes
+railgun_service:
+  railgun:
+
+railgun_limits_domain: railgun
+railgun_limits_limit_type: hard
+railgun_limits_limit_item: nofile
+railgun_limits_limit_value: "{{ railgun_ulimit }}"
+railgun_limits:
+  railgun_hard:
+  railgun_soft:
+    limit_type: soft
+
+
