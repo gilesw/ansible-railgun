@@ -1,0 +1,9 @@
+---
+
+- hosts: all
+  vars:
+    railgun_activation_token: wibble
+    railgun_wan_ip: "{{ ansible_default_ipv4.address }}"
+    railgun_log_level: 5
+  roles:
+    - ansible-railgun

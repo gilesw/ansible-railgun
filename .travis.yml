@@ -1,0 +1,24 @@
+---
+
+language: python
+python: "2.7"
+
+env:
+  matrix:
+     - ANSIBLE_VERSION="2.3.1.0"
+
+install:
+  - pip install ansible=="$ANSIBLE_VERSION"
+
+
+script:
+  - echo localhost > inventory
+
+  # Syntax check
+  - ansible-playbook -i inventory tests/playbook.yml --syntax-check
+
+  - ansible-playbook -i inventory tests/playbook.yml --connection=local
+
+  - test/check_ports.sh
+  - test/check_logs.sh
+
