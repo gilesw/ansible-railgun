@@ -17,8 +17,8 @@ script:
   # Syntax check
   - ansible-playbook -i inventory tests/playbook.yml --syntax-check
 
-  - ansible-playbook -i inventory tests/playbook.yml --connection=local
+  - ansible-playbook -i inventory tests/playbook.yml --connection=local --sudo
 
-  - test/check_ports.sh
-  - test/check_logs.sh
+  - tests/check_ports.sh
+  - tests/check_logs.sh
 
