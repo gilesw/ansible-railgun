@@ -13,20 +13,20 @@ railgun_wan_port: 2408
 railgun_wan_ip: false
 
 # Static map of IPs for use in NAT environments
-map_file: /etc/railgun/railgun-nat.conf
-stderr_file: /var/log/railgun/panic.log
-pid_file: /var/run/railgun/railgun.pid
+railgun_map_file: /etc/railgun/railgun-nat.conf
+railgun_stderr_file: /var/log/railgun/panic.log
+railgun_pid_file: /var/run/railgun/railgun.pid
 
 # 0 - log only errors
 # 5 - full debug logging (not for production use)
-log_level: 0
-validate_cert: 0 # Disable origin server SSL certificate validation by default
-ca_bundle: /etc/ssl/railgun-ca-certs.crt
+railgun_log_level: 0
+railgun_validate_cert: 0 # Disable origin server SSL certificate validation by default
+railgun_ca_bundle: /etc/ssl/railgun-ca-certs.crt
 
-memcached_servers: 127.0.0.1:11211 # space separated list of memcached servers
-memcached_timeout: 100
-memcached_limit: 1000000
-memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the expiration time is infinite.
+railgun_memcached_servers: 127.0.0.1:11211 # space separated list of memcached servers
+railgun_memcached_timeout: 100
+railgun_memcached_limit: 1000000
+railgun_memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the expiration time is infinite.
 # If the HTTP response body is greater than this number of bytes it will not be
 # delta compressed and the body will be streamed across the WAN as it is read
 # from the HTTP server. Defaults to 250000 bytes.
@@ -35,15 +35,15 @@ memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the expiration
 # resources per request. Text (HTML, CSS, JavaScript, JSON) files over 250KB
 # should be rare, and if there is a need to increase stream.size substantially,
 # you should be aware of the diminishing returns.
-stream_size: 250000
+railgun_stream_size: 250000
 
-stats_enabled: 0
-stats_log: 0
-stats_interval: 1
-stats_listen: false # e.g. 127.0.0.1:24088
+railgun_stats_enabled: 0
+railgun_stats_log: 0
+railgun_stats_interval: 1
+railgun_stats_listen: false # e.g. 127.0.0.1:24088
 # Sets the URL (e.g. http://stats.example.com:9090/) to POST to.
 # Defaults to nothing indicating that stats will not be POSTed anywhere
-stats_url: false
+railgun_stats_url: false
 
 
 railgun_nat_lines: false

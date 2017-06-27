@@ -74,7 +74,7 @@ Testing
 
 Set this yaml:-
 
-      log_level: 5
+    railgun_log_level: 5
 
 https://www.cloudflare.com/docs/railgun/installation.html#testing-railgun
 
