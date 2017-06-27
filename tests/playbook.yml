@@ -5,5 +5,7 @@
     railgun_activation_token: wibble
     railgun_wan_ip: "{{ ansible_default_ipv4.address }}"
     railgun_log_level: 5
+    railgun_service_state: stopped
+    railgun_service_enabled: no
   roles:
     - ansible-railgun
