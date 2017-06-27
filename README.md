@@ -53,7 +53,10 @@ Fix a listener version with:-
 
     railgun_packages:
       railgun-stable:
-        version: '5.3.0'
+        version: '=5.3.0'
+
+FIXME: I can't find a nice pattern for setting an optional version without include = in the value.
+
 
 Dependencies
 ------------

@@ -6,7 +6,7 @@
 
 - name: ensure {{ role_name }} packages are installed
   package:
-    name: "{{ item.key }}{{ item.value.version | default('') | regex_replace('^', '=') }}"
+    name: "{{ item.key }}{{ item.value.version | default('') }}"
     state: present
   with_dict: "{{ railgun_packages }}"
 
