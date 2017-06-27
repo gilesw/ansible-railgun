@@ -1,4 +1,4 @@
-ansible-railgun
+ansible-railgun [![Build Status](https://travis-ci.org/gilesw/ansible-railgun.png?branch=master)](https://travis-ci.org/gilesw/ansible-railgun)
 ===============
 
 Railgun is a WAN optimization technology developed by CloudFlare and is available to CloudFlare Business and Enterprise customers, as well as Optimized Partners. Railgun requires a piece of software called the Railgun Listener to be installed on your web server's network. This ansible module will install, configureand start the listener service. Any configuration changes will automatically restart railgun.
