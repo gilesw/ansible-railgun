@@ -57,6 +57,24 @@ Fix a listener version with:-
 
 FIXME: I can't find a nice pattern for setting an optional version without include = in the value.
 
+rg-watcher
+----------
+
+Railgun doesn't perform testing of it's backend targets so this module installs an optional daemon to check the backends for failures
+and remove them from railgun. To enable the service add some yaml to your inventory:-
+
+
+    railgun_service:
+      rg-watcher:
+        enabled: yes
+        state: started
+
+And define the targets it will test:-
+
+    railgun_watcher_targets:
+      - 10.0.0.1
+      - 10.0.0.2
+
 
 Dependencies
 ------------

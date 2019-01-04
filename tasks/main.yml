@@ -10,6 +10,21 @@
     state: present
   with_dict: "{{ railgun_packages }}"
 
+- name: copy files
+  copy:
+    src: "{{ item.value.src | default(railgun_copy_src) }}"
+    dest: "{{ item.value.dest | default(railgun_copy_dest) }}"
+    directory_mode: "{{ item.value.directory_mode | default(railgun_copy_directory_mode) }}"
+    owner: "{{ item.value.owner | default(railgun_copy_owner)}}"
+    group: "{{ item.value.group | default(railgun_copy_group) }}"
+    mode: "{{ item.value.mode | default(railgun_copy_mode)}}"
+    remote_src: "{{ item.value.remote_src | default(railgun_copy_remote_src)}}"
+    force: "{{ item.value.force | default(railgun_copy_force)}}"
+    content: "{{ item.value.content | default(railgun_copy_content)}}"
+  notify: "{{ item.value.notify | default(railgun_copy_notify) }}"
+  with_dict: "{{ railgun_copy }}"
+  register: copy
+
 - name: template files
   template:
     src: "{{ item.value.src }}"
@@ -23,7 +38,7 @@
 
 - assert: { that: "railgun_activation_token != 'unset'" }
 
-- name: "start {{ role_name }} service"
+- name: "start {{ role_name }} service and optionally rg-watcher"
   service:
     name: "{{ item.key }}"
     state: "{{ item.value.state | default(railgun_service_state) }}"

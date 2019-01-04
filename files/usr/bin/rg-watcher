@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+#
+# rg-watcher
+
+
+#
+# Functions
+#
+
+usage() {
+
+    I_USAGE="
+
+    Description:
+
+    Railgun has support for multiple targets per hostname however when
+    one of the targets is down it will continue to round robin to the target.
+
+    rg-watcher adds a healthcheck to Railgun, checking for target failures
+    and removing them from Railgun and performing a reload resulting
+    in no traffic being sent to the failing target.
+
+    A known good config file with all targets defined is required before you start using the watcher.
+    You can create it with:-
+
+      sudo cp $RAILGUN_NAT_FILE $RAILGUN_NAT_FILE_ORIGINAL
+      
+    A list of targets to test should be provided:-
+
+      $WATCHER_TARGETS_FILE
+        ...
+        10.0.0.1
+        10.0.0.2
+        ...
+
+    Dependencies: timeout,curl,awk,grep,nc,$RAILGUN_NAT_FILE_ORIGINAL,$WATCHER_TARGETS_FILE
+
+    Options:
+
+    -D  --daemon   : run as a daemon
+    -r  --dry-run  : don't overwrite Railguns actual config and reload
+    -v  --verbose  : show failing ips
+    -h  --help     : display help
+
+    Daemonizing and locking:
+
+    railgun-watcher -D
+      |
+      |
+      run-daemon - backgrounded loop [  railgun-watcher (args passed through), sleep X ]
+                 - touch $LOCK.daemon
+                 - exit
+    
+    railgun-watcher - touch $LOCK
+                    - run main
+                    - cleanup lock
+
+    "
+    echo "$I_USAGE"
+    exit
+}
+
+ping_exit_code_to_message() {
+  case $1 in
+    0) message="[Success]";;
+    1) message="[No reply]";;
+    2) message="[Other errors]";;
+    *)  message="[Unknown exit code]";;
+  esac
+  echo "$1: $message"
+}
+
+verbose_and_log() { [ $VERBOSE -ne 0 ] && echo "$@" && echo "" ; logger -- "${PROGRAM_NAME} $@" ;}
+verbose() { [ $VERBOSE -ne 0 ] && echo "$@" && echo "" ;}
+debug_and_log() { [ "$DEBUG" -gt 0 ] && echo "$@" && echo "" ; logger -- "${PROGRAM_NAME} $@" ;}
+fatal() { echo "FATAL: $@" && echo "" ; clean_exit 1 ;}
+
+repeat_cmd_noout () {
+  local wait=$1 limit=$2
+  shift 2
+  local count="0" exit_code=0
+  $@ 1>/dev/null 2>&1
+  exit_code=$?
+  while [ "$exit_code" -ne 0 ]; do
+    sleep $wait
+    count="$(($count + 1))"
+    if [ "$count" -eq "$limit" ]; then
+      return $exit_code
+    fi
+    $@ 1>/dev/null 2>&1
+    exit_code=$?
+  done
+  if [ "$count" -ne 0 ];then
+    verbose_and_log "$@ ran on $count extra attempts"
+  fi
+  return $exit_code
+}
+repeat_cmd () {
+  local wait=$1 limit=$2
+  shift 2
+  local count="0" exit_code=0
+  $@ 2>&1
+  exit_code=$?
+  while [ "$exit_code" -ne 0 ]; do
+    sleep $wait
+    count="$(($count + 1))"
+    if [ "$count" -eq "$limit" ]; then
+      return $exit_code
+    fi
+    $@ 2>&1
+    exit_code=$?
+  done
+  if [ "$count" -ne 0 ];then
+    verbose_and_log "$@ ran on $count extra attempts"
+  fi
+  return $exit_code
+}
+
+
+run_daemon_loop() {
+
+  # Signal our children to exit when we do
+  # See: http://mywiki.wooledge.org/SignalTrap
+  trap "rm -f $LOCK.daemon $LOCK; exit" INT KILL TERM EXIT
+
+  # Passthrough some arguments to our daemonized process
+  declare i args=""
+  for i in `seq $VERBOSE`; do args="$args -v"; done
+  for i in `seq $DEBUG`; do args="$args --debug"; done
+  [ ! -z $dry_run ] && args="args --dry-run" 
+
+  # Daemonize
+  while true; do
+    if [ ! -e "$CONF_DIR/disable" ]; then
+      [ "$VERBOSE" -gt 0 ] && printf '%s\n%s sleep=%s\n' "$sep" "# $(date +'%F %T')" $DAEMON_SLEEP
+      $REAL_PATH $args
+    fi
+    sleep $DAEMON_SLEEP
+  done
+
+  rm -f "$LOCK.daemon"
+  exit 0
+}
+
+run_daemon() {
+
+  # Lock
+  declare lock="$LOCK.daemon" pid='' exit_code=0
+  check_lock "$lock" || exit 1
+
+  run_daemon_loop &
+  exit_code=$?
+  pid=$!
+
+  echo $pid > "$lock"
+  echo $pid > /var/run/$PROGRAM_NAME.pid # for /etc/init.d/$PROGRAM_NAME
+
+  exit $exit_code
+
+}
+
+check_lock() {
+  declare lock="$1" pid=''
+
+  # No lock -> OK
+  [ -e "$lock" ] || return 0
+
+  # If process not runing, we delete the lock
+  pid=$(cat "$lock")
+  if ! ps -o pid= -p $pid &> /dev/null; then
+    echo "$lock already exists but will be delete, pid '$pid' is not running" 1>&2
+    rm -f "$lock"
+    return
+  fi
+
+  echo "$lock already exists !" 1>&2
+  return 1
+}
+
+
+NETWORK_WAIT_TIME=10
+NETWORK_RETRIES=3
+PING_WAIT_TIME=3
+PING_RETRIES=5
+
+#
+# Perform initial ping then https check connection to a target ip multiple times
+#
+check_target_health(){
+  local check_target=$1
+  local check_target_exit_code=0
+  verbose "$HEADER"
+  verbose "Testing: $check_target"
+
+  check_target_output=$(repeat_cmd $PING_WAIT_TIME $PING_RETRIES ping -c 1 "$check_target")
+  check_target_exit_code=$?
+
+  if [ "$check_target_exit_code" -ne 0 ];then
+    verbose_and_log "$check_target_output"
+    verbose_and_log "exit_code: $check_target_exit_code"
+    return $check_target_exit_code
+  fi
+
+  check_target_output=$(repeat_cmd $NETWORK_WAIT_TIME $NETWORK_RETRIES nc -z -v -w 2 "$check_target" 443)
+  check_target_exit_code=$?
+
+  if [ $check_target_exit_code -ne 0 ];then
+    verbose_and_log "$check_target_output"
+    verbose_and_log "exit_code: $check_target_exit_code"
+  fi
+
+  verbose "$check_target_output"
+  verbose "exit_code: $check_target_exit_code"
+  return $check_target_exit_code
+}
+
+check_dependencies(){
+  [ $(id -u) = 0 ]                                || fatal "run as root"
+  [ -f $RAILGUN_NAT_FILE_ORIGINAL ]               || fatal "$RAILGUN_NAT_FILE_ORIGINAL missing"
+  [ -f $WATCHER_TARGET_FILE ]                     || fatal "$WATCHER_TARGET_FILE missing"
+  command -v curl >/dev/null 2>&1                 || fatal "curl missing"
+}
+
+cleanup_temp_and_state_files(){
+  cp $RAILGUN_NAT_FILE_ORIGINAL $WATCHER_TEMP_FILE
+  [ -f $WATCHER_STATE_FILE ] && rm $WATCHER_STATE_FILE
+}
+
+free_port(){
+  LPORT=32768
+  UPORT=60999
+  while true; do
+    MPORT=$[$LPORT + ($RANDOM % $UPORT)];
+    (echo "" >/dev/tcp/127.0.0.1/${MPORT}) >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo $MPORT
+      return 0
+    fi
+  done
+}
+
+test_railgun_nat_config(){
+  [ ! -d $WATCHER_LINT_DIR ] && mkdir $WATCHER_LINT_DIR
+  cp $WATCHER_TEMP_FILE $WATCHER_LINT_DIR ; cp $RAILGUN_CONF_FILE $WATCHER_LINT_DIR
+
+  sed -i.bak \
+    -e "s!map\.file.*!map.file = $WATCHER_LINT_DIR/railgun-nat.conf!" \
+    -e "s!pid\.file.*!pid.file = $WATCHER_LINT_DIR/railgun.pid!" \
+    -e "s!wan\.port.*!wan.port = $(free_port)!" \
+  $WATCHER_LINT_DIR/railgun.conf
+
+  if timeout 10 rg-listener -config=$WATCHER_LINT_DIR/railgun.conf | grep 'Error rereading configuration file';then
+    return 1
+  fi
+}
+
+activate_new_railgun_config(){
+  verbose "diff  $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE"
+  verbose "$(diff $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE)"
+
+  if diff -q $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE >/dev/null;then
+    verbose "INFO: correct $RAILGUN_NAT_FILE already active"
+    clean_exit
+  else
+    if [ -z $dry_run ];then
+      if cat $WATCHER_TEMP_FILE | grep -v '#' | grep -qP '=($| +$)';then
+        verbose_and_log "NO CHANGE: will not remove all targets $(diff $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE)"
+      else
+        if ! config_lint=$(test_railgun_nat_config);then
+          verbose_and_log "FAIL: $WATCHER_LINT_DIR/railgun-nat.conf fails $config_lint"
+          clean_exit
+        fi
+        verbose_and_log "CHANGE: installing new $RAILGUN_NAT_FILE and reloading rg-listener"
+        verbose_and_log "CHANGE: $(diff $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE | grep '<')"
+        cp $WATCHER_TEMP_FILE $RAILGUN_NAT_FILE
+        service railgun reload >/dev/null
+      fi
+    else
+      verbose_and_log "DRYMODE: would install new $RAILGUN_NAT_FILE"
+    fi
+  fi
+}
+
+#
+# strip failed targets from our working railgun-nat config file
+#
+test_railgun_for_healthy_targets(){
+  # use a different file descripter to not interfere with netcat
+  while read -r -u 3 target; do
+    if check_target_health "$target";then
+      verbose "OK"
+    else
+      sed -i "s/$target//g" $WATCHER_TEMP_FILE
+      touch $WATCHER_STATE_FILE
+    fi
+  done 3< <(cat $WATCHER_TARGETS_FILE | grep -Ev "(#|^$)")
+}
+
+clean_exit() {
+  declare exit_code=$1
+  [ -z "$exit_code" ] && exit_code=0
+  [ "$exit_code" == "0" ] && verbose "OK"
+  [ "$DEBUG" == "0" ] && rm -f "$LOCK"
+  exit $exit_code
+}
+
+#
+# Defaults
+#
+WATCHER_STATE_FILE=/tmp/rg-watcher.failed_target
+RAILGUN_NAT_FILE_ORIGINAL=/etc/railgun/railgun-nat.conf.original
+RAILGUN_NAT_FILE=/etc/railgun/railgun-nat.conf
+RAILGUN_CONF_FILE=/etc/railgun/railgun.conf
+WATCHER_TEMP_FILE=/tmp/railgun-nat.conf
+WATCHER_LINT_DIR=/tmp/rg-watcher-lint
+WATCHER_TARGETS_FILE=/etc/railgun/rg-watcher.targets
+VERBOSE=0
+DEBUG=0
+CONF_DIR="/etc/railgun";
+LOCK="$CONF_DIR/rg-watcher.lock"
+
+# Seconds
+DAEMON_SLEEP=20
+
+HEADER='#----------------------------------------------------------'
+declare -r REAL_PATH="$(readlink -f $0)"
+[ -z "$HOSTNAME" ] && HOSTNAME=$(hostname)
+[ -z "$USER" ] && USER=$(whoami)
+PROGRAM_NAME=$(basename $0)
+run_daemon=0
+
+#
+# arguments
+#
+
+while :
+do
+    case $1 in
+        -h | --help | -\?) usage ; exit 0 ;;
+        -d | --DEBUG) DEBUG=1 ; shift ;;
+        -r | --dry-run) dry_run=1 ; shift ;;
+        -v | --verbose) VERBOSE=$((VERBOSE+1)) ; shift ;;
+        -D | --daemon) run_daemon=1 ; shift ;;
+        --) shift ; break ;;
+        -*) echo "WARN: Unknown option (ignored): $1" >&2 ; shift ;;
+        *)  break ;;
+    esac
+done
+
+#
+# main
+#
+
+[ "$run_daemon" == "1" ] && run_daemon
+
+main() {
+
+  if [ "$DEBUG" == "0" ]; then
+    check_lock "$LOCK" || exit 1
+    echo $$ > "$LOCK"
+  fi
+
+
+  check_dependencies
+  cleanup_temp_and_state_files
+  test_railgun_for_healthy_targets
+  activate_new_railgun_config
+}
+
+main
+clean_exit

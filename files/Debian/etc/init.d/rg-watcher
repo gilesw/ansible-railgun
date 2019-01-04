@@ -1,0 +1,61 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:        rg-watcher
+# Required-Start:  $network $remote_fs $syslog
+# Required-Stop:   $network $remote_fs $syslog
+# Default-Start:   2 3 4 5
+# Default-Stop:    1
+# Short-Description: Start rg-watcher daemon
+### END INIT INFO
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+. /lib/lsb/init-functions
+
+DAEMON=/usr/bin/rg-watcher
+PIDFILE=/var/run/rg-watcher.pid
+
+test -x $DAEMON || exit 5
+
+RGWATCHER_OPTS=''
+
+if [ -r /etc/default/rg-watcher ]; then
+	. /etc/default/rg-watcher
+fi
+
+case $1 in
+	start)
+		log_daemon_msg "Starting rg-watcher daemon" "rg-watcher"
+  	  start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE --startas $DAEMON -- --daemon $RGWATCHER_OPTS
+		status=$?
+		log_end_msg $status
+  		;;
+	stop)
+		log_daemon_msg "Stopping rg-watcher daemon" "rg-watcher"
+  		start-stop-daemon --stop --retry=TERM/3/KILL/3 --pidfile $PIDFILE
+      rm -f /etc/railgun/rg-watcher.lock /etc/railgun/rg-watcher.lock.daemon
+		log_end_msg $?
+		rm -f $PIDFILE
+  		;;
+	restart|force-reload)
+		$0 stop && sleep 5 && $0 start
+  		;;
+	try-restart)
+		if $0 status >/dev/null; then
+			$0 restart
+		else
+			exit 0
+		fi
+		;;
+	reload)
+		exit 3
+		;;
+	status)
+		status_of_proc $DAEMON "rg-watcher"
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|try-restart|force-reload|status}"
+		exit 2
+		;;
+esac

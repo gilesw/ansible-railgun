@@ -1,0 +1,14 @@
+check file railgun-panic with path /var/log/railgun/panic.log
+  if match
+    "too many open files"
+    for 2 cycles
+    then exec "/usr/sbin/service railgun restart"
+  if match
+    ".*"
+    for 2 cycles
+    then alert
+
+check process rg-listener with pidfile /var/run/railgun/railgun.pid
+    start program  "/etc/init.d/railgun start"
+    stop  program  "/etc/init.d/railgun stop"
+    if 5 restarts within 5 cycles then timeout

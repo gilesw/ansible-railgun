@@ -26,7 +26,7 @@ railgun_ca_bundle: /etc/ssl/railgun-ca-certs.crt
 railgun_memcached_servers: 127.0.0.1:11211 # space separated list of memcached servers
 railgun_memcached_timeout: 100
 railgun_memcached_limit: 1000000
-railgun_memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the expiration time is infinite.
+railgun_memcached_expiration: 0 # seconds (10 minutes) If set to 0 then the expiration time is infinite.
 # If the HTTP response body is greater than this number of bytes it will not be
 # delta compressed and the body will be streamed across the WAN as it is read
 # from the HTTP server. Defaults to 250000 bytes.
@@ -35,15 +35,32 @@ railgun_memcached_expiration: 600 # seconds (10 minutes) If set to 0 then the ex
 # resources per request. Text (HTML, CSS, JavaScript, JSON) files over 250KB
 # should be rare, and if there is a need to increase stream.size substantially,
 # you should be aware of the diminishing returns.
-railgun_stream_size: 250000
+railgun_stream_size: 1000000 # 1Mb
 
-railgun_stats_enabled: 0
-railgun_stats_log: 0
+railgun_stats_enabled: 1
+railgun_stats_log: 1
 railgun_stats_interval: 1
-railgun_stats_listen: false # e.g. 127.0.0.1:24088
+railgun_stats_listen: 0.0.0.0:9090 # e.g. 127.0.0.1:24088
 # Sets the URL (e.g. http://stats.example.com:9090/) to POST to.
 # Defaults to nothing indicating that stats will not be POSTed anywhere
 railgun_stats_url: false
+
+# 300 seconds match timeouts of cf itself
+railgun_lan_timeout: 300
+
+# Sets the number of idle TCP connections that will be kept open to the origin server for connection pooling. Defaults to 1.
+railgun_origin_idleconns: 1
+
+# If set to 1 then a Cf-Railgun header will be sent to the origin web server when the request goes through railgun. Defaults to 0. The Cf-Railgun will not have a compression ratio in it, instead it has the word ‘origin’.
+railgun_origin_cf_railgun: 1
+
+# Whether LZ4 compression is to be enabled or not. The default is 0 (disabled). Set to 1 to enable.
+railgun_compress_data: 0
+
+# Tuning feature used to set a multiplier on the number of cores available to oversubscribe. Default is 1.
+railgun_cpu_oversubscribe: 1
+
+
 
 
 railgun_nat_lines: false
@@ -81,6 +98,9 @@ railgun_copy_owner:  "{{ railgun_file_owner }}"
 railgun_copy_group:  "{{ ansible_user_gid }}"
 railgun_copy_mode:   "{{ railgun_file_mode }}"
 railgun_copy_notify: "{{ railgun_file_notify }}"
+railgun_copy_remote_src: false
+railgun_copy_content: "{{ omit }}"
+railgun_copy_force: 'yes'
 
 railgun_template_dest: "{{ omit }}"
 railgun_template_directory_mode: "{{ omit }}"
@@ -96,6 +116,12 @@ railgun_template:
   railgun_nat_conf:
     src: railgun_nat.j2
     dest: /etc/railgun/railgun-nat.conf
+  railgun_nat_conf_original:
+    src: railgun_nat.j2
+    dest: /etc/railgun/railgun-nat.conf.original
+  railgun_watcher_targets:
+    src: rg-watcher.targets.j2
+    dest: /etc/railgun/rg-watcher.targets
 
 railgun_template_Debian:
   railgun_default:
@@ -106,6 +132,9 @@ railgun_service_state: started
 railgun_service_enabled: yes
 railgun_service:
   railgun:
+  rg-watcher:
+    state: stopped
+    enabled: no
 
 railgun_limits_domain: railgun
 railgun_limits_limit_type: hard
@@ -116,4 +145,17 @@ railgun_limits:
   railgun_soft:
     limit_type: soft
 
+railgun_copy:
+  railgun_watcher:
+    src: "files/usr/bin/rg-watcher"
+    dest: "/usr/bin/rg-watcher"
+    mode: '0755'
+  railgun_monit:
+    src: "files/etc/monit/conf.d/railgun"
+    dest: "/etc/monit/conf.d/railgun"
+    notify: "reload monit"
+  railgun_watcher_service:
+    src: "files/{{ ansible_os_family }}/etc/init.d/rg-watcher"
+    dest: "/etc/init.d/rg-watcher"
+    mode: '0755'
 

@@ -117,3 +117,20 @@ stats.interval = {{ railgun_stats_interval }}
 stats.listen = {{ railgun_stats_listen }}
 {% endif %}
 
+# timeout for slow loading pages
+lan.timeout = {{ railgun_lan_timeout }}
+
+# Sets the number of idle TCP connections that will be kept open to the origin server for connection pooling. Defaults to 1.
+origin.idleconns = {{ railgun_origin_idleconns }}
+
+# If set to 1 then a Cf-Railgun header will be sent to the origin web server when the request goes through railgun. Defaults to 0. The Cf-Railgun will not have a compression ratio in it, instead it has the word ‘origin’.
+origin.cf-railgun = {{ railgun_origin_cf_railgun }}
+
+# Whether LZ4 compression is to be enabled or not. The default is 0 (disabled). Set to 1 to enable.
+compress.data = {{ railgun_compress_data }}
+
+# Tuning feature used to set a multiplier on the number of cores available to oversubscribe. Default is 1.
+cpu.oversubscribe = {{ railgun_cpu_oversubscribe }}
+
+
+
