@@ -73,6 +73,7 @@ railgun_nat_lines: false
 
 railgun_packages:
   railgun-stable:
+  monit:
 
 railgun_yum_repository_key:
   cloudflare:
